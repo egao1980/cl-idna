@@ -1,6 +1,6 @@
 # Cl-Idna - CL-IDNA is a Internationalized Domain Names in Applications API
 
-Portable library implementing IDNA2008 name translation according to [[https://unicode.org/reports/tr46/]].
+Portable library implementing IDNA2008 name translation according to <https://unicode.org/reports/tr46/>.
 
 ## Usage
 
@@ -28,7 +28,7 @@ Decoding strings from IDNA notation to unicode text:
 
 ## Installation
 
-CL-IDNA is available at [[Ultralisp.org]]
+CL-IDNA is available at [Ultralisp.org](https://ultralisp.org/)
 
       ;; install Ultralisp if you haven't done it yet
       (ql-dist:install-dist "http://dist.ultralisp.org/"
