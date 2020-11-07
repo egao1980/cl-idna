@@ -1,6 +1,6 @@
 (defpackage cl-idna
-  (:use :cl
-        ))
+  (:use :cl)
+  (:export #:to-ascii #:to-unicode))
 (in-package :cl-idna)
 
 (defconstant +delimiter+ (code-char #x2d))
@@ -48,7 +48,7 @@
    (+ digit
       (if (< digit 26)
           (if flag +capital-a+ +small-a+)
-          +zero+))))
+          (- +zero+ 26)))))
 
 
 (defun punycode-encode (code-points &key case-flags)
@@ -67,7 +67,7 @@ case folding (to downcase), as required for ToASCII."
      (with-output-to-string (output)
        (loop for c-code in code-points
              do (when (basic-p c-code)
-                  (write-char (code-char(if case-flags
+                  (write-char (code-char (if case-flags
                                              (ascii-case-map c-code (nth h case-flags))
                                              c-code))
                               output)
@@ -104,16 +104,17 @@ case folding (to downcase), as required for ToASCII."
                     ;; represent delta as a generalized variable-length integer:
                     (let ((q (do* ((q delta (truncate (- q tee) (- +base+ tee)))
                                    (k +base+ (+ k +base+))
-                                   (tee (if (<= k bias)
-                                            +tmin+
-                                            (if (>= k (+ bias +tmax+))
-                                                +tmax+
-                                                (- k bias)))
-                                        (if (<= k bias)
-                                            +tmin+
-                                            (if (>= k (+ bias +tmax+))
-                                                +tmax+
-                                                (- k bias)))))
+                                   (tt (- k bias) (- k bias))
+                                   (tee (cond ((< tt +tmin+)
+                                               +tmin+)
+                                              ((>= k (+ bias +tmax+))
+                                               +tmax+)
+                                              (t tt))
+                                        (cond ((< tt +tmin+)
+                                               +tmin+)
+                                              ((>= k (+ bias +tmax+))
+                                               +tmax+)
+                                              (t tt))))
                                   ((< q tee) q)
                                (write-char (encode-digit (+ tee (rem (- q tee) (- +base+ tee))) nil)
                                            output))))
@@ -125,7 +126,76 @@ case folding (to downcase), as required for ToASCII."
          (incf n)))
      encodedp)))
 
-(defun idna-map (name &key transitional-processing (use-std3-ascii-rules t))
+
+(defun decode-digit (cp)
+  (cond ((< (- cp 48) 10) (- cp 22))
+        ((< (- cp 65) 26) (- cp 65))
+        ((< (- cp 97) 26) (- cp 97))
+        (t +base+)
+        ))
+
+(defun punycode-decode (code-points)
+  (declare (optimize debug))
+  (let ((output nil)
+        (output-length 0)
+        (n +initial-n+)
+        (i 0)
+        (bias +initial-bias+)
+        (basic (or (position +delimiter+ code-points :from-end t)
+                   0))
+        (oldi 0))
+
+    (loop for char-code in (subseq code-points 0 basic)
+          do (when (>= char-code #x80)
+               (error "Invalid input ~x >=#x80" char-code))
+             (setf output (nconc output (list char-code)))
+             (incf output-length))
+
+    ;; Main decoding loop: Start just after the last delimiter if any
+    ;; basic code points were copied; start at beginning otherwise.
+
+    (loop with input = (if (zerop basic) code-points (subseq code-points (1+ basic)))
+          with out = 0
+          while input
+          ;; ic is the index of the next character to be consumed.
+          ;; Decode a generalized variable-length integer into delta,
+          ;; which gets added to i. The overflow checking is easier if
+          ;; we increase i as we go, then subtract off its starting
+          ;; value at the end to obtain delta.
+          do (setf oldi i)
+             (loop with w = 1
+                   with digit
+                   with tee
+                   for k from +base+ by +base+
+                   do
+                      (assert input () "punycode_bad_input(1)")
+                      (setf digit (decode-digit (car input)))
+                      (setf input (rest input))
+                      (setf tee (cond
+                                  ((<= k bias) +tmin+)
+                                  ((>= k (+ bias +tmax+)) +tmax+)
+                                  (t (- k bias))))
+                      (assert (< digit +base+) () "punycode_bad_input(2)")
+                      (assert (< digit (truncate (- +maxint+ i) w)) () "punycode_overflow(1)")
+                      (incf i (* digit w))
+                      (when (< digit tee) (return))
+                      (assert (<= w (truncate +maxint+ (- +base+ tee))) () "punycode_overflow(2)")
+                      (setf w (* w (- +base+ tee))))
+             (setf out (1+ output-length))
+             (setf bias (adapt (- i oldi) out (zerop oldi)))
+
+             ;; i was supposed to wrap around from out to 0,
+             ;; incrementing n each time, so we'll fix that now:
+             (assert (< (truncate i out) (- +maxint+ n)) () "punycode_overflow(3)")
+             (incf n (truncate i out))
+             (setf i (rem i out))
+
+             (setf output (nconc (subseq output 0 i) (list n) (subseq output i)))
+             (incf output-length)
+             (incf i))
+    output))
+
+(defun idna-map (name &key transitional-processing-p (use-std3-ascii-rules-p t))
   (let ((+ignored+ (cl-unicode:property-symbol "ignored"))
         (+deviation+ (cl-unicode:property-symbol "deviation"))
         (+valid+ (cl-unicode:property-symbol "valid"))
@@ -138,19 +208,102 @@ case folding (to downcase), as required for ToASCII."
           for status = (car mapping)
           nconc (cond
                   ((or (eql status +valid+)
-                       (and (not transitional-processing)
+                       (and (not transitional-processing-p)
                             (eql status +deviation+))
-                       (and (not use-std3-ascii-rules)
+                       (and (not use-std3-ascii-rules-p)
                             (eql status +disallowed-std3-valid+)))
                    (list code-point))
                   ((eql status +ignored+)
                    nil)
                   ((or
-                    (and transitional-processing
+                    (and transitional-processing-p
                          (eql status +deviation+))
                     (eql status +mapped+)
-                    (and (not use-std3-ascii-rules)
+                    (and (not use-std3-ascii-rules-p)
                          (eql status +disallowed-std3-mapped+)))
                    (nth 1 mapping))
                   (t
                    (error "Disallowed character"))))))
+
+(defun check-label (code-points &key transitional-processing-p
+                                  (use-std3-ascii-rules-p t)
+                                  (check-hyphens-p t)
+                                  (check-bidi-p t)
+                                  (check-joiners-p t))
+  (let* ((punycoded-p (when (> (length code-points) 3)
+                        (equal '(#x78 #x6e #x2d #x2d) (subseq code-points 0 4))))
+         (label (if punycoded-p (punycode-decode (subseq code-points 4)) code-points)))
+    (when (not (equal label (cl-unicode:normalization-form-c label)))
+      (error "The label must be in Unicode Normalization Form NFC."))
+    (let ((minus-char (char-code #\-)))
+      (when (and check-hyphens-p
+                 (find minus-char (list (car label)
+                                        (nth 2 label)
+                                        (nth 3 label)
+                                        (car (last label)))))
+        (error "The label must not contain a U+002D HYPHEN-MINUS character in the first, third, fourth and the last positions.")))
+    (when (find (char-code #\.) label)
+      (error "The label must not contain a U+002E ( . ) FULL STOP."))
+    (when (string= "Mark" (cl-unicode:general-category (car label)))
+      (error "The label must not begin with a combining mark."))
+    (let ((+deviation+ (cl-unicode:property-symbol "deviation"))
+          (+valid+ (cl-unicode:property-symbol "valid"))
+          (+disallowed-std3-valid+ (cl-unicode:property-symbol "disallowed_STD3_valid")))
+      (when (find-if #'(lambda (c)
+                         (let ((status (car (cl-unicode:idna-mapping c))))
+                           (not (or (and (not use-std3-ascii-rules-p)
+                                         (eql status +disallowed-std3-valid+))
+                                    (if (or (not transitional-processing-p) punycoded-p)
+                                        (or (eql status +valid+)
+                                            (eql status +deviation+))
+                                        (eql status +valid+))))))
+                     label)
+        (error "The label contains a character with invalid status.")))
+    (values code-points label)))
+
+
+(defun prepare (name &key transitional-processing-p (use-std3-ascii-rules-p t))
+  (cl-unicode:normalization-form-c (idna-map name
+                                             :transitional-processing-p transitional-processing-p
+                                             :use-std3-ascii-rules-p use-std3-ascii-rules-p)))
+
+(defun to-ascii (string &key transitional-processing-p
+                          (use-std3-ascii-rules-p t)
+                          (check-hyphens-p t)
+                          (check-bidi-p t)
+                          (check-joiners-p t))
+  "Encode string to IDNA punycode format using the ToASCII algorithm."
+  (with-output-to-string (output)
+    (loop for (component . rest) on (cl-utilities:split-sequence (char-code #\.) (prepare string))
+          do (multiple-value-bind (punycode encodedp) (punycode-encode
+                                                       (check-label component
+                                                                    :transitional-processing-p transitional-processing-p
+                                                                    :use-std3-ascii-rules-p use-std3-ascii-rules-p
+                                                                    :check-hyphens-p check-hyphens-p
+                                                                    :check-bidi-p check-bidi-p
+                                                                    :check-joiners-p check-joiners-p))
+               (cond (encodedp
+                      (write-string "xn--" output)
+                      (write-string punycode output))
+                     (t (write-sequence (mapcar #'code-char component) output)))
+               (when rest
+                 (write-char #\. output))))))
+
+(defun to-unicode (string &key transitional-processing-p
+                            (use-std3-ascii-rules-p t)
+                            (check-hyphens-p t)
+                            (check-bidi-p t)
+                            (check-joiners-p t))
+  "Encode string to IDNA punycode format using the ToASCII algorithm."
+  (with-output-to-string (output)
+    (loop for (component . rest) on (cl-utilities:split-sequence (char-code #\.) (prepare string))
+          do (multiple-value-bind (raw decoded) (check-label component
+                                                             :transitional-processing-p transitional-processing-p
+                                                             :use-std3-ascii-rules-p use-std3-ascii-rules-p
+                                                             :check-hyphens-p check-hyphens-p
+                                                             :check-bidi-p check-bidi-p
+                                                             :check-joiners-p check-joiners-p)
+               (declare (ignore raw))
+               (write-sequence (mapcar #'code-char decoded) output)
+               (when rest
+                 (write-char #\. output))))))

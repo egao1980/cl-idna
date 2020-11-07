@@ -2,7 +2,7 @@
   :version "0.1.0"
   :author "Nikolai Matiushev"
   :license "MIT"
-  :depends-on ("alexandria"
+  :depends-on ("c-utilities"
                "cl-unicode")
   :components ((:module "src"
                 :components
