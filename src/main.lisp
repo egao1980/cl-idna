@@ -18,6 +18,9 @@
 (defconstant +capital-a+ #x41)
 (defconstant +capital-z+ #x5a)
 
+(defun before-init ()
+  "Is run when the system is loaded"
+  (pushnew :idna-unicode *features*))
 
 (defun adapt (delta numpoints first-time)
   (setf delta (if first-time
@@ -87,7 +90,7 @@ case folding (to downcase), as required for ToASCII."
          ;; already. Find the next larger one:
          (loop for c-code in code-points
                when (and (>= c-code n) (> m c-code))
-                 do (setf m c-code))
+               do (setf m c-code))
 
          ;; Increase delta enough to advance the decoder's <n,i>
          ;; state to <m,0> but guard against overflow:
@@ -115,7 +118,7 @@ case folding (to downcase), as required for ToASCII."
                                               ((>= k (+ bias +tmax+))
                                                +tmax+)
                                               (t tt))))
-                                  ((< q tee) q)
+                                 ((< q tee) q)
                                (write-char (encode-digit (+ tee (rem (- q tee) (- +base+ tee))) nil)
                                            output))))
                       (write-char (encode-digit q (and case-flags (nth h case-flags))) output))
@@ -226,10 +229,10 @@ case folding (to downcase), as required for ToASCII."
                    (error "Disallowed character"))))))
 
 (defun check-label (code-points &key transitional-processing-p
-                                  (use-std3-ascii-rules-p t)
-                                  (check-hyphens-p t)
-                                  (check-bidi-p t)
-                                  (check-joiners-p t))
+                                     (use-std3-ascii-rules-p t)
+                                     (check-hyphens-p t)
+                                     (check-bidi-p t)
+                                     (check-joiners-p t))
   (let* ((punycoded-p (when (> (length code-points) 3)
                         (equal '(#x78 #x6e #x2d #x2d) (subseq code-points 0 4))))
          (label (if punycoded-p (punycode-decode (subseq code-points 4)) code-points)))
@@ -268,10 +271,10 @@ case folding (to downcase), as required for ToASCII."
                                              :use-std3-ascii-rules-p use-std3-ascii-rules-p)))
 
 (defun to-ascii (string &key transitional-processing-p
-                          (use-std3-ascii-rules-p t)
-                          (check-hyphens-p t)
-                          (check-bidi-p t)
-                          (check-joiners-p t))
+                             (use-std3-ascii-rules-p t)
+                             (check-hyphens-p t)
+                             (check-bidi-p t)
+                             (check-joiners-p t))
   "Encode string to IDNA punycode format using the ToASCII algorithm."
   (with-output-to-string (output)
     (loop for (component . rest) on (cl-utilities:split-sequence (char-code #\.) (prepare string))
@@ -290,10 +293,10 @@ case folding (to downcase), as required for ToASCII."
                  (write-char #\. output))))))
 
 (defun to-unicode (string &key transitional-processing-p
-                            (use-std3-ascii-rules-p t)
-                            (check-hyphens-p t)
-                            (check-bidi-p t)
-                            (check-joiners-p t))
+                               (use-std3-ascii-rules-p t)
+                               (check-hyphens-p t)
+                               (check-bidi-p t)
+                               (check-joiners-p t))
   "Encode string to IDNA punycode format using the ToASCII algorithm."
   (with-output-to-string (output)
     (loop for (component . rest) on (cl-utilities:split-sequence (char-code #\.) (prepare string))

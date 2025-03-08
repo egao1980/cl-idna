@@ -8,6 +8,8 @@
                 :components
                 ((:file "main"))))
   :description "CL-IDNA is a Internationalized Domain Names in Applications API"
+  :perform (load-op :after (o c)
+                    (uiop:symbol-call :cl-idna :before-init))
   :in-order-to ((test-op (test-op "cl-idna/tests"))))
 
 (defsystem "cl-idna/tests"
