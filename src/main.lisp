@@ -209,24 +209,22 @@ case folding (to downcase), as required for ToASCII."
           for code-point = (char-code c)
           for mapping = (cl-unicode:idna-mapping code-point)
           for status = (car mapping)
-          nconc (cond
-                  ((or (eql status +valid+)
-                       (and (not transitional-processing-p)
-                            (eql status +deviation+))
-                       (and (not use-std3-ascii-rules-p)
-                            (eql status +disallowed-std3-valid+)))
-                   (list code-point))
-                  ((eql status +ignored+)
-                   nil)
-                  ((or
-                    (and transitional-processing-p
-                         (eql status +deviation+))
-                    (eql status +mapped+)
-                    (and (not use-std3-ascii-rules-p)
-                         (eql status +disallowed-std3-mapped+)))
-                   (nth 1 mapping))
-                  (t
-                   (error "Disallowed character"))))))
+          unless (eql status +ignored+)
+          collect (cond
+                    ((or (eql status +valid+)
+                         (and (not transitional-processing-p)
+                              (eql status +deviation+))
+                         (and (not use-std3-ascii-rules-p)
+                              (eql status +disallowed-std3-valid+)))
+                     code-point)
+                    ((or (and transitional-processing-p
+                              (eql status +deviation+))
+                         (eql status +mapped+)
+                         (and (not use-std3-ascii-rules-p)
+                              (eql status +disallowed-std3-mapped+)))
+                     (caadr mapping))
+                    (t
+                     (error "Disallowed character"))))))
 
 (defun check-label (code-points &key transitional-processing-p
                                      (use-std3-ascii-rules-p t)
