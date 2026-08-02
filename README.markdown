@@ -28,13 +28,28 @@ Decoding strings from IDNA notation to unicode text:
 
 ## Installation
 
-CL-IDNA is available at [Ultralisp.org](https://ultralisp.org/)
+**OCI (cl-repository / cl-stack):**
 
-      ;; install Ultralisp if you haven't done it yet
-      (ql-dist:install-dist "http://dist.ultralisp.org/"
-                      :prompt nil)
-      ;; install CL-IDNA
-      (ql:quickload :cl-idna)
+```
+ghcr.io/egao1980/cl-systems/cl-idna:0.1.0
+```
+
+```common-lisp
+(asdf:load-system "cl-repository-client")
+(cl-repository-client/quickload:add-registry "https://ghcr.io"
+  :namespace "egao1980/cl-systems")
+(cl-repo:load-system "cl-idna")
+```
+
+**Ultralisp:**
+
+```common-lisp
+;; install Ultralisp if you haven't done it yet
+(ql-dist:install-dist "http://dist.ultralisp.org/" :prompt nil)
+(ql:quickload :cl-idna)
+```
+
+Not on Quicklisp — that is why stack consumers prefer the OCI pin (and why `egao1980/quri` is not proposed upstream yet).
 
 
 ## Author

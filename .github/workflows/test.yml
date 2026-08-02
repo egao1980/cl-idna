@@ -1,0 +1,37 @@
+name: Test
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: cl-idna-test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SBCL_VERSION: 2.4.11
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Roswell
+        run: |
+          curl -sL https://raw.githubusercontent.com/roswell/roswell/master/scripts/install-for-ci.sh | bash
+          echo "$HOME/.roswell/bin" >> "$GITHUB_PATH"
+
+      - name: Install SBCL + deps
+        run: |
+          ros install "sbcl-bin/$SBCL_VERSION"
+          ros use "sbcl-bin/$SBCL_VERSION"
+          ros install qlot
+          qlot install
+
+      - name: Test
+        run: |
+          qlot exec ros -S . -e '(asdf:test-system "cl-idna")'
