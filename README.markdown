@@ -62,6 +62,16 @@ Not on Quicklisp — that is why stack consumers prefer the OCI pin (and why `eg
 - Copyright (c) 2020 Nikolai Matiushev
 - Copyright (c) 2011 Andreas Fuchs
 
+## Publish
+
+Source-only OCI publish is centralized in [`cl-stack-systems`](https://github.com/egao1980/cl-stack-systems)
+(`imports/cl-idna/qlfile` pin + shared `publish.yml`). Packaging metadata lives in the `.asd`
+(`auto-package-spec`):
+
+```bash
+gh workflow run publish.yml -R egao1980/cl-stack-systems -f import=cl-idna
+```
+
 ## License
 
 Licensed under the MIT License.
