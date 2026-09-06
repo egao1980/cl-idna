@@ -21,4 +21,6 @@
                 :components
                 ((:file "main"))))
   :description "Test system for cl-idna"
-  :perform (test-op (op c) (symbol-call :rove :run c)))
+  :perform (test-op (op c)
+             (unless (symbol-call :rove :run c)
+               (error "tests failed for ~A" (component-name c)))))
