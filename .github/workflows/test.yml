@@ -1,4 +1,4 @@
-name: Test
+name: test
 
 on:
   push:
@@ -6,54 +6,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-concurrency:
-  group: cl-idna-test-${{ github.ref }}
-  cancel-in-progress: true
-
-env:
-  SBCL_VERSION: 2.4.11
-  ROSWELL_VERSION: "26.02.116"
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 jobs:
   test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: egao1980/cl-repository/.github/actions/setup-roswell@main
-        with:
-          sbcl-version: ${{ env.SBCL_VERSION }}
-          roswell-version: ${{ env.ROSWELL_VERSION }}
-
-      - name: Install dependencies (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          ros install qlot
-          qlot install
-
-      - name: Install dependencies (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          ros install rove
-          ros install cl-utilities
-          ros install cl-unicode
-
-      - name: Test (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          qlot exec ros -S . -e '(asdf:test-system "cl-idna")'
-
-      - name: Test (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          export CL_SOURCE_REGISTRY="$(pwd)//:"
-          ros -S . -e '(asdf:test-system "cl-idna")' -q
+    uses: egao1980/cl-repository/.github/workflows/test-system.yml@main
